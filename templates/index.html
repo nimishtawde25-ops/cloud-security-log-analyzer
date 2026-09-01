@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Cloud Security Log Analyzer</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f6f8;
+            color: #222;
+        }
+
+        .navbar {
+            background: #111827;
+            color: white;
+            padding: 18px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            background: #dc2626;
+            padding: 9px 15px;
+            border-radius: 6px;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1500px;
+            margin: 25px auto;
+        }
+
+        .welcome {
+            margin-bottom: 20px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(180px, 1fr));
+
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            font-size: 15px;
+            color: #555;
+        }
+
+        .card .number {
+            font-size: 30px;
+            font-weight: bold;
+        }
+
+        .upload-box,
+        .filters,
+        .section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        input,
+        select,
+        button {
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .export {
+            display: inline-block;
+            background: #059669;
+            color: white;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-left: 10px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+        }
+
+        th,
+        td {
+            padding: 11px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #111827;
+            color: white;
+        }
+
+        tr:hover {
+            background: #f3f4f6;
+        }
+
+        .high {
+            font-weight: bold;
+        }
+
+        .medium {
+            font-weight: bold;
+        }
+
+        .low {
+            font-weight: bold;
+        }
+
+        .critical {
+            font-weight: bold;
+        }
+
+        .alert-box {
+            border-left: 5px solid #dc2626;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #fef2f2;
+        }
+
+        .ip-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .ip-item {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(300px, 1fr));
+
+            gap: 20px;
+        }
+
+        .chart-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .chart-bar {
+            margin: 12px 0;
+        }
+
+        .bar-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .bar {
+            height: 18px;
+            background: #2563eb;
+            border-radius: 5px;
+        }
+
+        .timeline-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .empty {
+            color: #777;
+            padding: 15px 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #666;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<!-- =====================================================
+     NAVBAR
+===================================================== -->
+
+<nav class="navbar">
+
+    <h1>
+        🛡️ Cloud Security Log Analyzer
+    </h1>
+
+    <div>
+
+        <span style="margin-right: 15px;">
+            👤 {{ username }}
+        </span>
+
+        <a href="/logout">
+            Logout
+        </a>
+
+    </div>
+
+</nav>
+
+
+<div class="container">
+
+
+<!-- =====================================================
+     WELCOME
+===================================================== -->
+
+<div class="welcome">
+
+    <h2>
+        Security Dashboard
+    </h2>
+
+    <p>
+        Monitor, analyze and investigate security events.
+    </p>
+
+</div>
+
+
+<!-- =====================================================
+     STATISTICS
+===================================================== -->
+
+<div class="cards">
+
+    <div class="card">
+
+        <h3>Total Events</h3>
+
+        <div class="number">
+            {{ total_events }}
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>High Severity</h3>
+
+        <div class="number">
+            {{ high_events }}
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>Medium Severity</h3>
+
+        <div class="number">
+            {{ medium_events }}
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>Low Severity</h3>
+
+        <div class="number">
+            {{ low_events }}
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>Failed Logins</h3>
+
+        <div class="number">
+            {{ failed_logins }}
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>Total Alerts</h3>
+
+        <div class="number">
+            {{ total_alerts }}
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>Critical Alerts</h3>
+
+        <div class="number">
+            {{ critical_alerts }}
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     LOG UPLOAD
+===================================================== -->
+
+<div class="upload-box">
+
+    <h2>
+        📁 Upload Log File
+    </h2>
+
+    <form
+        method="POST"
+        enctype="multipart/form-data"
+    >
+
+        <input
+            type="file"
+            name="log_file"
+            accept=".log,.txt"
+            required
+        >
+
+        <button type="submit">
+            Analyze Log
+        </button>
+
+    </form>
+
+</div>
+
+
+<!-- =====================================================
+     FILTERS
+===================================================== -->
+
+<div class="filters">
+
+    <h2>
+        🔎 Event Filters
+    </h2>
+
+    <form method="GET">
+
+        <select name="severity">
+
+            <option value="">
+                All Severities
+            </option>
+
+            <option value="HIGH"
+                {% if request.args.get('severity') == 'HIGH' %}
+                    selected
+                {% endif %}
+            >
+                HIGH
+            </option>
+
+            <option value="MEDIUM"
+                {% if request.args.get('severity') == 'MEDIUM' %}
+                    selected
+                {% endif %}
+            >
+                MEDIUM
+            </option>
+
+            <option value="LOW"
+                {% if request.args.get('severity') == 'LOW' %}
+                    selected
+                {% endif %}
+            >
+                LOW
+            </option>
+
+        </select>
+
+
+        <input
+            type="text"
+            name="event"
+            placeholder="Event type"
+            value="{{ request.args.get('event', '') }}"
+        >
+
+
+        <input
+            type="text"
+            name="ip"
+            placeholder="IP address"
+            value="{{ request.args.get('ip', '') }}"
+        >
+
+
+        <button type="submit">
+            Apply Filters
+        </button>
+
+
+        <a
+            href="/"
+            style="
+                margin-left:10px;
+                text-decoration:none;
+            "
+        >
+            Clear
+        </a>
+
+
+        <a
+            href="/export"
+            class="export"
+        >
+            ⬇ Export CSV
+        </a>
+
+    </form>
+
+</div>
+
+
+<!-- =====================================================
+     SECURITY CHARTS
+===================================================== -->
+
+<div class="charts">
+
+
+    <!-- SEVERITY -->
+
+    <div class="chart-box">
+
+        <h2>
+            📊 Severity Distribution
+        </h2>
+
+
+        {% set max_severity =
+            [high_events, medium_events, low_events]
+            |max
+        %}
+
+
+        {% if max_severity > 0 %}
+
+
+        <div class="chart-bar">
+
+            <div class="bar-label">
+
+                <span>
+                    HIGH
+                </span>
+
+                <strong>
+                    {{ high_events }}
+                </strong>
+
+            </div>
+
+            <div
+                class="bar"
+                style="
+                    width:
+                    {{ (high_events / max_severity * 100)|int }}%;
+                "
+            ></div>
+
+        </div>
+
+
+        <div class="chart-bar">
+
+            <div class="bar-label">
+
+                <span>
+                    MEDIUM
+                </span>
+
+                <strong>
+                    {{ medium_events }}
+                </strong>
+
+            </div>
+
+            <div
+                class="bar"
+                style="
+                    width:
+                    {{ (medium_events / max_severity * 100)|int }}%;
+                "
+            ></div>
+
+        </div>
+
+
+        <div class="chart-bar">
+
+            <div class="bar-label">
+
+                <span>
+                    LOW
+                </span>
+
+                <strong>
+                    {{ low_events }}
+                </strong>
+
+            </div>
+
+            <div
+                class="bar"
+                style="
+                    width:
+                    {{ (low_events / max_severity * 100)|int }}%;
+                "
+            ></div>
+
+        </div>
+
+
+        {% else %}
+
+            <p class="empty">
+                No security events available.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- EVENT TYPES -->
+
+    <div class="chart-box">
+
+        <h2>
+            📈 Event Types
+        </h2>
+
+
+        {% if event_counts %}
+
+            {% for event_name, count in event_counts.items() %}
+
+                <div class="chart-bar">
+
+                    <div class="bar-label">
+
+                        <span>
+                            {{ event_name }}
+                        </span>
+
+                        <strong>
+                            {{ count }}
+                        </strong>
+
+                    </div>
+
+                    <div
+                        class="bar"
+                        style="
+                            width:
+                            {{ (count / total_events * 100)|int }}%;
+                        "
+                    ></div>
+
+                </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <p class="empty">
+                No event types available.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     SUSPICIOUS IP ADDRESSES
+===================================================== -->
+
+<div class="section">
+
+    <h2>
+        🌐 Suspicious IP Addresses
+    </h2>
+
+
+    {% if suspicious_ips %}
+
+        <p>
+
+            Top suspicious IP:
+
+            <strong>
+                {{ top_suspicious_ip }}
+            </strong>
+
+            with
+
+            <strong>
+                {{ top_suspicious_count }}
+            </strong>
+
+            suspicious events.
+
+        </p>
+
+
+        <div class="ip-list">
+
+            {% for ip, count in suspicious_ips.items() %}
+
+                <div class="ip-item">
+
+                    <strong>
+                        {{ ip }}
+                    </strong>
+
+                    —
+
+                    {{ count }} suspicious events
+
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+
+    {% else %}
+
+        <p class="empty">
+            No suspicious IP addresses detected.
+        </p>
+
+    {% endif %}
+
+</div>
+
+
+<!-- =====================================================
+     BRUTE FORCE ALERTS
+===================================================== -->
+
+<div class="section">
+
+    <h2>
+        🚨 Brute Force Detection
+    </h2>
+
+
+    {% if brute_force_alerts %}
+
+        {% for alert in brute_force_alerts %}
+
+            <div class="alert-box">
+
+                <strong>
+                    {{ alert.severity }}
+                </strong>
+
+                <p>
+                    {{ alert.message }}
+                </p>
+
+                <p>
+
+                    IP:
+
+                    <strong>
+                        {{ alert.ip_address }}
+                    </strong>
+
+                    |
+
+                    Attempts:
+
+                    <strong>
+                        {{ alert.attempts }}
+                    </strong>
+
+                </p>
+
+            </div>
+
+        {% endfor %}
+
+    {% else %}
+
+        <p class="empty">
+            No brute-force attacks detected.
+        </p>
+
+    {% endif %}
+
+</div>
+
+
+<!-- =====================================================
+     ALERT HISTORY
+===================================================== -->
+
+<div class="section">
+
+    <h2>
+        🚨 Alert History
+    </h2>
+
+
+    <div class="cards">
+
+        <div class="card">
+
+            <h3>
+                Total Alerts
+            </h3>
+
+            <div class="number">
+                {{ total_alerts }}
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <h3>
+                Critical
+            </h3>
+
+            <div class="number">
+                {{ critical_alerts }}
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <h3>
+                High
+            </h3>
+
+            <div class="number">
+                {{ high_alerts }}
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <h3>
+                Medium
+            </h3>
+
+            <div class="number">
+                {{ medium_alerts }}
+            </div>
+
+        </div>
+
+    </div>
+
+
+    {% if alerts %}
+
+
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>ID</th>
+
+                    <th>Alert Type</th>
+
+                    <th>Severity</th>
+
+                    <th>Message</th>
+
+                    <th>IP Address</th>
+
+                    <th>Username</th>
+
+                    <th>Risk Score</th>
+
+                    <th>Risk Level</th>
+
+                    <th>Attempts</th>
+
+                    <th>Timestamp</th>
+
+                    <th>Created At</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+
+            {% for alert in alerts %}
+
+
+                <tr>
+
+                    <td>
+                        {{ alert.id }}
+                    </td>
+
+                    <td>
+                        {{ alert.alert_type }}
+                    </td>
+
+                    <td>
+                        {{ alert.severity }}
+                    </td>
+
+                    <td>
+                        {{ alert.message }}
+                    </td>
+
+                    <td>
+                        {{ alert.ip_address }}
+                    </td>
+
+                    <td>
+                        {{ alert.username }}
+                    </td>
+
+                    <td>
+                        {{ alert.risk_score }}
+                    </td>
+
+                    <td>
+                        {{ alert.risk_level }}
+                    </td>
+
+                    <td>
+                        {{ alert.attempts }}
+                    </td>
+
+                    <td>
+                        {{ alert.timestamp }}
+                    </td>
+
+                    <td>
+                        {{ alert.created_at }}
+                    </td>
+
+                </tr>
+
+
+            {% endfor %}
+
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    {% else %}
+
+        <p class="empty">
+            No alerts recorded yet.
+        </p>
+
+    {% endif %}
+
+</div>
+
+
+<!-- =====================================================
+     SECURITY EVENTS
+===================================================== -->
+
+<div class="section">
+
+    <h2>
+        🔐 Security Events
+    </h2>
+
+
+    {% if events %}
+
+
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>ID</th>
+
+                    <th>Severity</th>
+
+                    <th>Event</th>
+
+                    <th>Message</th>
+
+                    <th>IP Address</th>
+
+                    <th>Username</th>
+
+                    <th>Timestamp</th>
+
+                    <th>Created At</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+
+            {% for event in events %}
+
+
+                <tr>
+
+                    <td>
+                        {{ event.id }}
+                    </td>
+
+                    <td>
+                        {{ event.severity }}
+                    </td>
+
+                    <td>
+                        {{ event.event }}
+                    </td>
+
+                    <td>
+                        {{ event.message }}
+                    </td>
+
+                    <td>
+                        {{ event.ip_address }}
+                    </td>
+
+                    <td>
+                        {{ event.username }}
+                    </td>
+
+                    <td>
+                        {{ event.timestamp }}
+                    </td>
+
+                    <td>
+                        {{ event.created_at }}
+                    </td>
+
+                </tr>
+
+
+            {% endfor %}
+
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    {% else %}
+
+        <p class="empty">
+            No security events found.
+        </p>
+
+    {% endif %}
+
+</div>
+
+
+<!-- =====================================================
+     SECURITY TIMELINE
+===================================================== -->
+
+<div class="section">
+
+    <h2>
+        🕒 Security Timeline
+    </h2>
+
+
+    {% if timeline_counts %}
+
+
+        {% for timestamp, count in timeline_counts.items() %}
+
+            <div class="timeline-item">
+
+                <strong>
+                    {{ timestamp }}
+                </strong>
+
+                —
+
+                {{ count }} event(s)
+
+            </div>
+
+        {% endfor %}
+
+
+    {% else %}
+
+        <p class="empty">
+            No timeline data available.
+        </p>
+
+    {% endif %}
+
+</div>
+
+
+</div>
+
+
+<!-- =====================================================
+     FOOTER
+===================================================== -->
+
+<footer>
+
+    Cloud Security Log Analyzer
+
+    <br>
+
+    Defensive Security Monitoring System
+
+</footer>
+
+
+</body>
+
+</html>

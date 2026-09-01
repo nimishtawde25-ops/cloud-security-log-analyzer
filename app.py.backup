@@ -1,0 +1,741 @@
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    Response,
+    session
+)
+
+from analyzer.log_analyzer import (
+    analyze_log,
+    analyze_suspicious_ips,
+    detect_brute_force,
+    generate_alerts
+)
+
+from database.database import (
+    save_event,
+    get_events,
+    save_alert,
+    get_alerts
+)
+
+import csv
+import io
+
+
+# =========================================================
+# FLASK APPLICATION
+# =========================================================
+
+app = Flask(__name__)
+
+# Change this before using the application outside your lab.
+app.secret_key = "cloud-security-log-analyzer-secret-key"
+
+
+# =========================================================
+# LOGIN CHECK
+# =========================================================
+
+def login_required():
+    return "username" in session
+
+
+# =========================================================
+# LOGIN
+# =========================================================
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+
+    if "username" in session:
+        return redirect("/")
+
+    if request.method == "POST":
+
+        username = request.form.get(
+            "username",
+            ""
+        ).strip()
+
+        password = request.form.get(
+            "password",
+            ""
+        )
+
+        # -------------------------------------------------
+        # LOCAL LAB LOGIN
+        # -------------------------------------------------
+
+        if (
+            username == "admin"
+            and password == "admin123"
+        ):
+
+            session["username"] = username
+
+            return redirect("/")
+
+        return render_template(
+            "login.html",
+            error="Invalid username or password"
+        )
+
+    return render_template(
+        "login.html"
+    )
+
+
+# =========================================================
+# LOGOUT
+# =========================================================
+
+@app.route("/logout")
+def logout():
+
+    session.clear()
+
+    return redirect("/login")
+
+
+# =========================================================
+# DASHBOARD
+# =========================================================
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+
+    # -----------------------------------------------------
+    # REQUIRE LOGIN
+    # -----------------------------------------------------
+
+    if not login_required():
+
+        return redirect("/login")
+
+
+    # =====================================================
+    # LOG FILE UPLOAD
+    # =====================================================
+
+    if request.method == "POST":
+
+        uploaded_file = request.files.get(
+            "log_file"
+        )
+
+        if uploaded_file:
+
+            filename = (
+                uploaded_file.filename or ""
+            ).lower()
+
+
+            # -------------------------------------------------
+            # CHECK FILE NAME
+            # -------------------------------------------------
+
+            if filename:
+
+                if not (
+                    filename.endswith(".log")
+                    or
+                    filename.endswith(".txt")
+                ):
+
+                    return redirect("/")
+
+
+                # -------------------------------------------------
+                # READ FILE
+                # -------------------------------------------------
+
+                file_data = uploaded_file.read()
+
+
+                # -------------------------------------------------
+                # 5 MB LIMIT
+                # -------------------------------------------------
+
+                max_size = 5 * 1024 * 1024
+
+
+                if len(file_data) > max_size:
+
+                    return redirect("/")
+
+
+                log_data = file_data.decode(
+                    "utf-8",
+                    errors="ignore"
+                )
+
+
+                # -------------------------------------------------
+                # ANALYZE LOG
+                # -------------------------------------------------
+
+                results = analyze_log(
+                    log_data
+                )
+
+
+                # -------------------------------------------------
+                # SAVE SECURITY EVENTS
+                # -------------------------------------------------
+
+                for result in results:
+
+                    save_event(
+
+                        result.get(
+                            "severity",
+                            "LOW"
+                        ),
+
+                        result.get(
+                            "event",
+                            "Unknown Event"
+                        ),
+
+                        result.get(
+                            "message",
+                            ""
+                        ),
+
+                        result.get(
+                            "ip_address",
+                            "Unknown"
+                        ),
+
+                        result.get(
+                            "username",
+                            "Unknown"
+                        ),
+
+                        result.get(
+                            "timestamp",
+                            "Unknown"
+                        )
+
+                    )
+
+
+        return redirect("/")
+
+
+    # =====================================================
+    # GET SECURITY EVENTS
+    # =====================================================
+
+    events = get_events()
+
+
+    events = [
+        dict(event)
+        for event in events
+    ]
+
+
+    # =====================================================
+    # FILTERS
+    # =====================================================
+
+    severity_filter = request.args.get(
+        "severity",
+        ""
+    ).strip()
+
+
+    event_filter = request.args.get(
+        "event",
+        ""
+    ).strip()
+
+
+    ip_filter = request.args.get(
+        "ip",
+        ""
+    ).strip()
+
+
+    filtered_events = []
+
+
+    for event in events:
+
+        # -------------------------------------------------
+        # SEVERITY FILTER
+        # -------------------------------------------------
+
+        if severity_filter:
+
+            if event.get(
+                "severity",
+                ""
+            ) != severity_filter:
+
+                continue
+
+
+        # -------------------------------------------------
+        # EVENT FILTER
+        # -------------------------------------------------
+
+        if event_filter:
+
+            if event.get(
+                "event",
+                ""
+            ) != event_filter:
+
+                continue
+
+
+        # -------------------------------------------------
+        # IP FILTER
+        # -------------------------------------------------
+
+        if ip_filter:
+
+            ip_address = str(
+                event.get(
+                    "ip_address",
+                    "Unknown"
+                )
+            )
+
+
+            if (
+                ip_filter.lower()
+                not in
+                ip_address.lower()
+            ):
+
+                continue
+
+
+        filtered_events.append(
+            event
+        )
+
+
+    # =====================================================
+    # SECURITY STATISTICS
+    # =====================================================
+
+    total_events = len(events)
+
+
+    high_events = sum(
+        1
+        for event in events
+        if event.get("severity") == "HIGH"
+    )
+
+
+    medium_events = sum(
+        1
+        for event in events
+        if event.get("severity") == "MEDIUM"
+    )
+
+
+    low_events = sum(
+        1
+        for event in events
+        if event.get("severity") == "LOW"
+    )
+
+
+    failed_logins = sum(
+        1
+        for event in events
+        if event.get("event") == "Failed Login"
+    )
+
+
+    # =====================================================
+    # SEVERITY COUNTS
+    # =====================================================
+
+    severity_counts = {
+
+        "HIGH": high_events,
+
+        "MEDIUM": medium_events,
+
+        "LOW": low_events
+
+    }
+
+
+    # =====================================================
+    # EVENT TYPE COUNTS
+    # =====================================================
+
+    event_counts = {}
+
+
+    for event in events:
+
+        event_name = event.get(
+            "event",
+            "Unknown"
+        )
+
+
+        event_counts[event_name] = (
+            event_counts.get(
+                event_name,
+                0
+            ) + 1
+        )
+
+
+    # =====================================================
+    # SECURITY TIMELINE
+    # =====================================================
+
+    timeline_counts = {}
+
+
+    for event in events:
+
+        timestamp = str(
+            event.get(
+                "timestamp",
+                "Unknown"
+            )
+        )
+
+
+        timeline_key = timestamp[:16]
+
+
+        timeline_counts[timeline_key] = (
+            timeline_counts.get(
+                timeline_key,
+                0
+            ) + 1
+        )
+
+
+    timeline_counts = dict(
+        sorted(
+            timeline_counts.items()
+        )
+    )
+
+
+    # =====================================================
+    # SUSPICIOUS IPS
+    # =====================================================
+
+    suspicious_ips = (
+        analyze_suspicious_ips(
+            events
+        )
+    )
+
+
+    if suspicious_ips:
+
+        top_suspicious_ip = max(
+            suspicious_ips,
+            key=suspicious_ips.get
+        )
+
+
+        top_suspicious_count = (
+            suspicious_ips[
+                top_suspicious_ip
+            ]
+        )
+
+    else:
+
+        top_suspicious_ip = "None"
+
+        top_suspicious_count = 0
+
+
+    # =====================================================
+    # BRUTE FORCE DETECTION
+    # =====================================================
+
+    brute_force_alerts = (
+        detect_brute_force(
+            events
+        )
+    )
+
+
+    # =====================================================
+    # ADVANCED ALERT ENGINE
+    # =====================================================
+
+    generated_alerts = generate_alerts(
+        events
+    )
+
+
+    # =====================================================
+    # ALERT HISTORY
+    # =====================================================
+
+    #
+    # IMPORTANT:
+    #
+    # We do NOT save every generated alert again on
+    # every dashboard refresh.
+    #
+    # Instead, alert history is already stored when
+    # alerts are created by the application.
+    #
+    # Existing alerts are simply read here.
+    #
+
+    alerts = get_alerts()
+
+
+    alerts = [
+        dict(alert)
+        for alert in alerts
+    ]
+
+
+    # =====================================================
+    # ALERT STATISTICS
+    # =====================================================
+
+    total_alerts = len(alerts)
+
+
+    critical_alerts = sum(
+        1
+        for alert in alerts
+        if alert.get(
+            "severity"
+        ) == "CRITICAL"
+    )
+
+
+    high_alerts = sum(
+        1
+        for alert in alerts
+        if alert.get(
+            "severity"
+        ) == "HIGH"
+    )
+
+
+    medium_alerts = sum(
+        1
+        for alert in alerts
+        if alert.get(
+            "severity"
+        ) == "MEDIUM"
+    )
+
+
+    # =====================================================
+    # RENDER DASHBOARD
+    # =====================================================
+
+    return render_template(
+
+        "index.html",
+
+        # Events
+        events=filtered_events,
+
+        # Alerts
+        alerts=alerts,
+
+        generated_alerts=generated_alerts,
+
+        brute_force_alerts=brute_force_alerts,
+
+        # Statistics
+        total_events=total_events,
+
+        high_events=high_events,
+
+        medium_events=medium_events,
+
+        low_events=low_events,
+
+        failed_logins=failed_logins,
+
+        # Charts
+        severity_counts=severity_counts,
+
+        event_counts=event_counts,
+
+        timeline_counts=timeline_counts,
+
+        # Suspicious IP
+        suspicious_ips=suspicious_ips,
+
+        top_suspicious_ip=top_suspicious_ip,
+
+        top_suspicious_count=top_suspicious_count,
+
+        # Alert statistics
+        total_alerts=total_alerts,
+
+        critical_alerts=critical_alerts,
+
+        high_alerts=high_alerts,
+
+        medium_alerts=medium_alerts,
+
+        # User
+        username=session.get(
+            "username",
+            "Unknown"
+        )
+
+    )
+
+
+# =========================================================
+# CSV EXPORT
+# =========================================================
+
+@app.route("/export")
+def export_csv():
+
+    if not login_required():
+
+        return redirect("/login")
+
+
+    events = get_events()
+
+
+    output = io.StringIO()
+
+
+    writer = csv.writer(
+        output
+    )
+
+
+    # -----------------------------------------------------
+    # CSV HEADER
+    # -----------------------------------------------------
+
+    writer.writerow([
+
+        "ID",
+
+        "Severity",
+
+        "Event",
+
+        "Message",
+
+        "IP Address",
+
+        "Username",
+
+        "Timestamp",
+
+        "Created At"
+
+    ])
+
+
+    # -----------------------------------------------------
+    # CSV DATA
+    # -----------------------------------------------------
+
+    for event in events:
+
+        writer.writerow([
+
+            event["id"],
+
+            event["severity"],
+
+            event["event"],
+
+            event["message"],
+
+            event["ip_address"],
+
+            event["username"],
+
+            event["timestamp"],
+
+            event["created_at"]
+
+        ])
+
+
+    output.seek(0)
+
+
+    return Response(
+
+        output.getvalue(),
+
+        mimetype="text/csv",
+
+        headers={
+
+            "Content-Disposition":
+            "attachment; "
+            "filename=security_events.csv"
+
+        }
+
+    )
+
+
+# =========================================================
+# SECURITY HEADERS
+# =========================================================
+
+@app.after_request
+def security_headers(response):
+
+    response.headers[
+        "X-Content-Type-Options"
+    ] = "nosniff"
+
+
+    response.headers[
+        "X-Frame-Options"
+    ] = "DENY"
+
+
+    response.headers[
+        "Referrer-Policy"
+    ] = (
+        "strict-origin-when-cross-origin"
+    )
+
+
+    return response
+
+
+# =========================================================
+# APPLICATION START
+# =========================================================
+
+if __name__ == "__main__":
+
+    app.run(
+
+        host="127.0.0.1",
+
+        port=5000,
+
+        debug=True
+
+    )
