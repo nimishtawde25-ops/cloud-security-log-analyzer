@@ -71,3 +71,6 @@ Maximum upload size:
 
 ```text
 5 MB
+## Version
+
+Current release: v1.0.0
