@@ -80,10 +80,16 @@ Security events can contain:
 - Incident type
 - Attack stage
 
-### 📁 Log Upload
+## 📁 Log Upload
 
-Supported files:
+Supported log files:
+
+- `.log`
+- `.txt`
+
+### Maximum Upload Size
+
+**5 MB per file**
 
 ```text
-.log
-.txt
+Maximum file size: 5 MB
